@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Prezentare de produs în AR</title>
+
+  <!-- A-Frame (motor 3D) + AR.js (urmărire marker) -->
+  <script src="https://cdn.jsdelivr.net/npm/aframe@1.6.0/dist/aframe.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.4.7/aframe/build/aframe-ar.js"></script>
+
+  <style>
+    :root {
+      --panel: rgba(16, 20, 24, 0.94);
+      --text: #f2f4f6;
+      --muted: #a8b0b8;
+      --accent: #ffb703;
+      --line: rgba(255, 255, 255, 0.12);
+    }
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #000; }
+    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+
+    /* Indicator de stare, sus */
+    #status {
+      position: fixed; z-index: 10;
+      top: calc(env(safe-area-inset-top, 0px) + 12px); left: 12px; right: 12px;
+      width: fit-content; max-width: calc(100% - 24px);
+      padding: 8px 14px; border-radius: 999px;
+      background: var(--panel); color: var(--text);
+      font-size: 14px; line-height: 1.3;
+      display: flex; align-items: center; gap: 8px;
+    }
+    #status::before {
+      content: ""; width: 9px; height: 9px; border-radius: 50%;
+      background: var(--muted); flex: none;
+    }
+    #status.found::before { background: #4ade80; }
+    #status.error::before { background: #f87171; }
+
+    /* Panou cu detalii, jos */
+    #panel {
+      position: fixed; z-index: 10; left: 0; right: 0; bottom: 0;
+      max-height: 55%; overflow-y: auto;
+      padding: 18px 20px calc(env(safe-area-inset-bottom, 0px) + 20px);
+      background: var(--panel); color: var(--text);
+      border-radius: 18px 18px 0 0;
+      transform: translateY(105%);
+      transition: transform 0.22s ease-out;
+    }
+    #panel.open { transform: translateY(0); }
+    #panel h2 { margin: 0 36px 6px 0; font-size: 20px; font-weight: 650; }
+    #panel p { margin: 0 0 12px; color: var(--muted); font-size: 15px; line-height: 1.45; max-width: 60ch; }
+    #panel dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; font-size: 14px; }
+    #panel dt { color: var(--muted); }
+    #panel dd { margin: 0; }
+    #close {
+      position: absolute; top: 10px; right: 10px;
+      width: 40px; height: 40px; border: 0; border-radius: 50%;
+      background: transparent; color: var(--text); font-size: 26px; line-height: 1; cursor: pointer;
+    }
+    #close:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    @media (prefers-reduced-motion: reduce) { #panel { transition: none; } }
+  </style>
+</head>
+
+<body>
+  <div id="status" role="status">Pornesc camera…</div>
+
+  <section id="panel" aria-live="polite">
+    <button id="close" aria-label="Închide detaliile">×</button>
+    <h2 id="p-title"></h2>
+    <p id="p-text"></p>
+    <dl id="p-specs"></dl>
+  </section>
+
+  <a-scene
+    vr-mode-ui="enabled: false"
+    renderer="logarithmicDepthBuffer: true; precision: medium"
+    arjs="trackingMethod: best; sourceType: webcam; debugUIEnabled: false"
+    cursor="rayOrigin: mouse; fuse: false"
+    raycaster="objects: .clickable; far: 100">
+
+    <a-entity light="type: ambient; color: #ffffff; intensity: 0.9"></a-entity>
+    <a-entity light="type: directional; color: #ffffff; intensity: 0.9" position="1 3 2"></a-entity>
+
+    <!-- Tot ce e în interiorul markerului rămâne ancorat de el -->
+    <a-marker id="marker" preset="hiro" emitevents="true">
+
+      <!-- Produs: căști construite din forme primitive.
+           Fiecare piesă are class="clickable" și componenta "hotspot". -->
+      <a-entity id="product" position="0 0.55 0" scale="0.8 0.8 0.8">
+
+        <!-- Arcul -->
+        <a-torus class="clickable" hotspot="part: headband"
+                 radius="0.5" radius-tubular="0.04" arc="180" segments-tubular="48"
+                 material="color: #2b3140; metalness: 0.4; roughness: 0.5"></a-torus>
+
+        <!-- Căștile (stânga / dreapta) -->
+        <a-cylinder class="clickable" hotspot="part: cup-left"
+                    position="-0.52 0 0" rotation="0 0 90" radius="0.22" height="0.16"
+                    material="color: #3a4256; metalness: 0.5; roughness: 0.4"></a-cylinder>
+        <a-cylinder class="clickable" hotspot="part: cup-right"
+                    position="0.52 0 0" rotation="0 0 90" radius="0.22" height="0.16"
+                    material="color: #3a4256; metalness: 0.5; roughness: 0.4"></a-cylinder>
+
+        <!-- Pernuțele -->
+        <a-torus class="clickable" hotspot="part: cushion"
+                 position="-0.42 0 0" rotation="0 90 0" radius="0.17" radius-tubular="0.055"
+                 material="color: #d9d4cc; roughness: 0.9"></a-torus>
+        <a-torus class="clickable" hotspot="part: cushion"
+                 position="0.42 0 0" rotation="0 90 0" radius="0.17" radius-tubular="0.055"
+                 material="color: #d9d4cc; roughness: 0.9"></a-torus>
+
+        <!-- Microfonul -->
+        <a-entity position="-0.6 -0.2 0.05" rotation="-25 0 0">
+          <a-cylinder class="clickable" hotspot="part: mic"
+                      position="0 -0.15 0" radius="0.015" height="0.3"
+                      material="color: #1c1f27; roughness: 0.6"></a-cylinder>
+          <a-sphere class="clickable" hotspot="part: mic"
+                    position="0 -0.32 0" radius="0.04"
+                    material="color: #1c1f27; roughness: 0.6"></a-sphere>
+        </a-entity>
+
+        <!-- Butonul de pornire -->
+        <a-cylinder class="clickable" hotspot="part: button"
+                    position="0.61 0.06 0" rotation="0 0 90" radius="0.04" height="0.04"
+                    material="color: #ffb703; roughness: 0.4"></a-cylinder>
+      </a-entity>
+    </a-marker>
+
+    <a-entity camera></a-entity>
+  </a-scene>
+
+  <script>
+    // ---------- Datele despre produs (poți schimba textele oricând) ----------
+    const PARTS = {
+      'headband': {
+        name: 'Arcul',
+        text: 'Structura care leagă cele două căști și se adaptează la forma capului.',
+        specs: [['Material', 'Aluminiu cu strat de silicon'], ['Greutate', '62 g'], ['Reglaj', '12 trepte pe fiecare parte']]
+      },
+      'cup-left': {
+        name: 'Casca stângă',
+        text: 'Conține difuzorul și modulul de conectare wireless.',
+        specs: [['Driver', 'Dinamic, 40 mm'], ['Frecvență', '20 Hz – 20 kHz'], ['Conectare', 'Bluetooth 5.3']]
+      },
+      'cup-right': {
+        name: 'Casca dreaptă',
+        text: 'Conține bateria, portul de încărcare și butonul de pornire.',
+        specs: [['Baterie', 'Până la 30 de ore'], ['Încărcare', 'USB-C, 10 min = 3 ore'], ['Impedanță', '32 Ω']]
+      },
+      'cushion': {
+        name: 'Pernuțele',
+        text: 'Spumă cu memorie, învelită în piele ecologică. Se detașează pentru curățare.',
+        specs: [['Material', 'Spumă cu memorie'], ['Înveliș', 'Piele ecologică'], ['Detașabile', 'Da']]
+      },
+      'mic': {
+        name: 'Microfonul',
+        text: 'Braț flexibil cu microfon direcțional, pentru apeluri clare.',
+        specs: [['Tip', 'MEMS, direcțional'], ['Anulare zgomot', 'Da'], ['Braț', 'Flexibil, detașabil']]
+      },
+      'button': {
+        name: 'Butonul de pornire',
+        text: 'Apăsare lungă pornește sau oprește căștile. Apăsare scurtă oprește muzica.',
+        specs: [['Pornire / oprire', 'Apăsare 2 secunde'], ['Pauză', 'Apăsare scurtă'], ['LED', 'Arată starea bateriei']]
+      }
+    };
+
+    // ---------- Elemente de interfață ----------
+    const statusEl = document.getElementById('status');
+    const panel = document.getElementById('panel');
+    const marker = document.getElementById('marker');
+    let markerVisible = false;
+
+    function setStatus(text, cls) {
+      statusEl.textContent = text;
+      statusEl.className = cls || '';
+    }
+
+    function showPanel(partId) {
+      const info = PARTS[partId];
+      if (!info) return;
+      document.getElementById('p-title').textContent = info.name;
+      document.getElementById('p-text').textContent = info.text;
+      const dl = document.getElementById('p-specs');
+      dl.replaceChildren();
+      info.specs.forEach(([k, v]) => {
+        const dt = document.createElement('dt'); dt.textContent = k;
+        const dd = document.createElement('dd'); dd.textContent = v;
+        dl.append(dt, dd);
+      });
+      panel.classList.add('open');
+    }
+
+    function highlight(partId) {
+      document.querySelectorAll('[hotspot]').forEach(el => {
+        const on = el.components.hotspot.data.part === partId;
+        el.setAttribute('material', 'emissive', on ? '#ffb703' : '#000000');
+        el.setAttribute('material', 'emissiveIntensity', on ? 0.8 : 0);
+      });
+    }
+
+    function clearSelection() {
+      panel.classList.remove('open');
+      highlight(null);
+    }
+
+    document.getElementById('close').addEventListener('click', clearSelection);
+
+    // ---------- Componenta "hotspot": o piesă care poate fi atinsă ----------
+    AFRAME.registerComponent('hotspot', {
+      schema: { part: { type: 'string' } },
+      init: function () {
+        this.el.addEventListener('click', () => {
+          if (!markerVisible) return;      // ignoră atingerile dacă markerul nu e vizibil
+          highlight(this.data.part);
+          showPanel(this.data.part);
+          setStatus(PARTS[this.data.part].name, 'found');
+        });
+      }
+    });
+
+    // ---------- Starea urmăririi ----------
+    marker.addEventListener('markerFound', () => {
+      markerVisible = true;
+      setStatus('Marker găsit. Atinge o piesă a căștilor.', 'found');
+    });
+    marker.addEventListener('markerLost', () => {
+      markerVisible = false;
+      clearSelection();
+      setStatus('Marker pierdut. Îndreaptă camera spre el.');
+    });
+
+    // ---------- Verificări de bază ----------
+    if (!window.isSecureContext) {
+      setStatus('Camera cere HTTPS. Deschide pagina de pe un link https://', 'error');
+    } else {
+      setStatus('Îndreaptă camera spre marker.');
+    }
+  </script>
+</body>
+</html>
