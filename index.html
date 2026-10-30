@@ -231,11 +231,42 @@
       setStatus('Marker pierdut. Îndreaptă camera spre el.');
     });
 
-    // ---------- Verificări de bază ----------
+    // ---------- Inițializare și diagnosticare cameră ----------
+    const scene = document.querySelector('a-scene');
+    let cameraStarted = false;
+    let cameraInitTimer;
+
     if (!window.isSecureContext) {
-      setStatus('Camera cere HTTPS. Deschide pagina de pe un link https://', 'error');
+      setStatus('Eroare: pagina trebuie deschisă prin HTTPS.', 'error');
     } else {
-      setStatus('Îndreaptă camera spre marker.');
+      setStatus('Se inițializează camera...');
+
+      // AR.js / A-Frame pot emite aceste evenimente când camera pornește.
+      scene.addEventListener('camera-init', () => {
+        cameraStarted = true;
+        clearTimeout(cameraInitTimer);
+        setStatus('Camera a pornit! Îndreaptă telefonul spre markerul Hiro.');
+      });
+
+      scene.addEventListener('camera-error', (event) => {
+        cameraStarted = false;
+        clearTimeout(cameraInitTimer);
+        console.error('Eroare la pornirea camerei:', event.detail || event);
+        setStatus(
+          'Nu pot porni camera. Permite accesul la cameră și reîncarcă pagina.',
+          'error'
+        );
+      });
+
+      // Fallback: nu lăsa interfața blocată permanent pe mesajul inițial.
+      cameraInitTimer = setTimeout(() => {
+        if (!cameraStarted) {
+          setStatus(
+            'Camera nu a pornit în 15 secunde. Verifică permisiunile și deschide pagina în Safari/Chrome.',
+            'error'
+          );
+        }
+      }, 15000);
     }
   </script>
 </body>
